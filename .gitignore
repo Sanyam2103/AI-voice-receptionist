@@ -1,0 +1,14 @@
+.env
+.venv/
+venv/
+credentials.json
+token.json
+*.py[cod]
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+.cursor/

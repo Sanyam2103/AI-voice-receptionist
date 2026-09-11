@@ -1,0 +1,25 @@
+{
+    "name": "Maple Street Dog Grooming",
+    "timezone": "Asia/Kolkata",
+    "currency": "INR",
+    "hours": {
+      "mon": ["10:00", "19:00"],
+      "tue": ["10:00", "19:00"],
+      "wed": ["10:00", "19:00"],
+      "thu": ["10:00", "19:00"],
+      "fri": ["10:00", "19:00"]
+    },
+    "closed": ["sat", "sun"],
+    "slot_minutes": 30,
+    "services": {
+      "bath": { "minutes": 30, "price": { "small": 600, "medium": 800, "large": 1100 } },
+      "bath_and_trim": { "minutes": 60, "price": { "small": 1200, "medium": 1500, "large": 1900 } },
+      "full_groom": { "minutes": 90, "price": { "small": 1800, "medium": 2200, "large": 2800 } }
+    },
+    "vaccines": "Anti-rabies vaccination is required. DHPP is recommended. We cannot make medical exceptions over chat or phone.",
+    "breeds_we_groom": ["indie", "labrador", "golden retriever", "beagle", "pomeranian", "shih tzu", "poodle", "most mixed breeds"],
+    "breeds_need_consult": ["german shepherd", "husky", "malamute", "chow"],
+    "breeds_we_dont": ["wolf hybrid"],
+    "late_policy_minutes": 15,
+    "handoff": ["billing", "complaints about charges", "medical", "aggression", "special cuts not on the menu", "tool errors"]
+}
