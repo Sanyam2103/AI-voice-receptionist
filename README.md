@@ -78,11 +78,61 @@ service account.
    uvicorn app:app --reload
    ```
 
-   Open <http://127.0.0.1:8000>. The health check is at `/health`; chat requests use
-   `POST /api/chat` with `{"message": "...", "session_id": null, "phone": null}`.
-   For voice, send the caller ID as `phone` on every turn so Contacts is upserted
-   even before a booking. Text chat can omit `phone`; a 10-digit number in the
-   message is also recorded.
+Open <http://127.0.0.1:8000>. The health check is at `/health`; chat requests use
+`POST /api/chat` with `{"message": "...", "session_id": null, "phone": null}`.
+For voice, send the caller ID as `phone` on every turn so Contacts is upserted
+even before a booking. Text chat can omit `phone`; a 10-digit number in the
+message is also recorded.
+
+## Vapi (voice tools)
+
+Vapi owns speech and the live-call LLM. This app still runs Calendar and Sheets
+through `POST /api/vapi/webhook`. Do not send the live call through `/api/chat`.
+
+1. Install a tunnel client (Cloudflare needs no account):
+
+   ```bash
+   brew install cloudflared
+   ```
+
+   Or ngrok: `brew install ngrok`, then `ngrok config add-authtoken <token>`.
+
+2. Start the app (`uvicorn app:app --reload`) and in a second terminal:
+
+   ```bash
+   python scripts/vapi_tunnel.py
+   ```
+
+   Copy the printed `https://…` host. The webhook is
+   `https://<host>/api/vapi/webhook`. Confirm `/health` on that host in a browser.
+
+3. In the Vapi dashboard, create Function tools with the same names as Phase 1
+   (`get_shop_calendar`, `check_availability`, `book_appointment`,
+   `find_appointments`, `reschedule_appointment`, `cancel_appointment`,
+   `report_running_late`, `policy_faq`, `request_handoff`). Set each tool's Server
+   URL to the webhook. Print the JSON schemas with:
+
+   ```bash
+   python scripts/print_vapi_tools.py
+   ```
+
+4. Smoke-test without a phone call (replace the host and a real date):
+
+   ```bash
+   curl -sS -X POST https://<host>/api/vapi/webhook \
+     -H 'Content-Type: application/json' \
+     -d '{"message":{"type":"tool-calls","toolCallList":[{"id":"t1","name":"policy_faq","arguments":{"topic":"hours"}}]}}'
+   ```
+
+   You should get `{"results":[{"toolCallId":"t1","result":"…json string…"}]}`.
+
+Free tunnel URLs change every restart. After Cloudflare prints a new host, push it to every shop Function tool (requires `VAPI_API_KEY` in `.env`):
+
+   ```bash
+   python scripts/update_vapi_tool_urls.py https://<host>
+   ```
+
+   Preview with `--dry-run`. The dashboard still requires a Server URL on each tool at create time; this script only rewrites those URLs later.
 
 The app creates a `Contacts` tab if needed and maintains these columns:
 `phone`, `name`, `dog_name`, `last_intent`, `last_summary`,

@@ -20,6 +20,8 @@ from grooming.google import (
 from grooming.policy import ShopPolicy
 from grooming.provider import AnthropicProvider
 from grooming.tools import ToolRegistry
+from grooming.vapi import handle_vapi_request
+
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +74,18 @@ def index():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/api/vapi/webhook")
+def vapi_webhook(payload: dict, service: ChatService = Depends(get_chat_service)):
+    try:
+        return handle_vapi_request(service.tools, payload)
+    except Exception as exc:
+        logger.exception("vapi webhook failed")
+        raise HTTPException(
+            status_code=503,
+            detail="The assistant is temporarily unavailable; please contact the shop.",
+        ) from exc
 
 
 @app.post("/api/chat", response_model=ChatResponse)

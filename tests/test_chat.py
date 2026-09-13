@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -142,11 +142,16 @@ def test_system_prompt_maps_every_date_to_its_real_weekday():
         assert ("CLOSED" in line) is closed
 
 
-def test_availability_results_label_the_weekday():
+def _registry_at(moment: str) -> ToolRegistry:
     policy = ShopPolicy.load(ROOT / "shop_policy.json")
-    registry = ToolRegistry(
-        BookingService(policy, FakeCalendar(), FakeContacts()), policy
+    now = datetime.fromisoformat(moment)
+    return ToolRegistry(
+        BookingService(policy, FakeCalendar(), FakeContacts(), now=lambda: now), policy
     )
+
+
+def test_availability_results_label_the_weekday():
+    registry = _registry_at("2026-09-10T12:00:00+05:30")
     saturday = json.loads(
         registry.execute("check_availability", {"date": "2026-09-12", "service": "bath"})
     )["result"]
@@ -156,6 +161,41 @@ def test_availability_results_label_the_weekday():
         "open": False,
         "slots": [],
     }
+
+
+def test_shop_calendar_maps_each_date_to_its_real_weekday():
+    registry = _registry_at("2026-09-10T12:00:00+05:30")
+    result = json.loads(registry.execute("get_shop_calendar", {}))["result"]
+
+    assert result["today"] == "2026-09-10"
+    assert result["today_weekday"] == "Thursday"
+    assert result["timezone"] == "Asia/Kolkata"
+    assert result["days"][0]["date"] == "2026-09-10"
+    for entry in result["days"]:
+        day = date.fromisoformat(entry["date"])
+        assert entry["weekday"] == day.strftime("%A")
+        assert entry["open"] is (day.weekday() < 5)
+        assert (entry["hours"] == "closed") is (day.weekday() >= 5)
+
+
+def test_availability_rejects_dates_outside_the_bookable_calendar():
+    registry = _registry_at("2026-09-10T12:00:00+05:30")
+
+    stale = json.loads(
+        registry.execute(
+            "check_availability", {"date": "2026-01-13", "service": "bath"}
+        )
+    )
+    assert stale["status"] == "error"
+    assert "2026-09-10" in stale["error"]
+    assert "get_shop_calendar" in stale["error"]
+
+    far = json.loads(
+        registry.execute(
+            "check_availability", {"date": "2027-03-01", "service": "bath"}
+        )
+    )
+    assert far["status"] == "error"
 
 
 def test_provider_is_thin_direct_sdk_wrapper():

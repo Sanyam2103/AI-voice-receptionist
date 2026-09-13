@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date as date_type
+from datetime import timedelta
 from typing import Any, Callable, Dict, List
 
 from .booking import BookingError, BookingService, ConflictError, HandoffRequired
@@ -22,10 +23,22 @@ def _tool(name: str, description: str, properties: Dict[str, Any], required: Lis
     }
 
 
+CALENDAR_DAYS = 21
+
+
 TOOL_DEFINITIONS = [
     _tool(
+        "get_shop_calendar",
+        "Return today's date and the weekday, ISO date, and open/closed status for "
+        "the next three weeks. Call this before any date reasoning. Never work out a "
+        "weekday or date yourself; read the exact ISO date off this result.",
+        {},
+        [],
+    ),
+    _tool(
         "check_availability",
-        "Return actual available appointment starts for a date and service.",
+        "Return actual available appointment starts for a date and service. "
+        "The date must be an ISO date taken from get_shop_calendar.",
         {
             "date": {"type": "string", "description": "ISO date, YYYY-MM-DD"},
             "service": {
@@ -120,6 +133,7 @@ class ToolRegistry:
         self.bookings = bookings
         self.policy = policy
         self.handlers: Dict[str, Callable[..., Any]] = {
+            "get_shop_calendar": self._calendar,
             "check_availability": self._availability,
             "book_appointment": bookings.book,
             "find_appointments": lambda phone: bookings.find_appointments(phone),
@@ -152,9 +166,42 @@ class ToolRegistry:
                 }
             )
 
+    def _today(self) -> date_type:
+        return self.bookings.now().astimezone(self.policy.timezone).date()
+
+    def _calendar(self) -> Dict[str, Any]:
+        today = self._today()
+        days = []
+        for offset in range(CALENDAR_DAYS):
+            day = today + timedelta(days=offset)
+            hours = self.policy.hours_for(day)
+            days.append(
+                {
+                    "date": day.isoformat(),
+                    "weekday": f"{day:%A}",
+                    "open": hours is not None,
+                    "hours": (
+                        f"{hours[0]:%H:%M}-{hours[1]:%H:%M}" if hours else "closed"
+                    ),
+                }
+            )
+        return {
+            "today": today.isoformat(),
+            "today_weekday": f"{today:%A}",
+            "timezone": self.policy.data["timezone"],
+            "days": days,
+        }
+
     def _availability(self, date: str, service: str) -> Dict[str, Any]:
-        slots = self.bookings.availability(date, service)
         day = date_type.fromisoformat(date)
+        today = self._today()
+        if day < today or day > today + timedelta(days=CALENDAR_DAYS - 1):
+            raise BookingError(
+                f"{date} ({day:%A}) is outside the bookable calendar. "
+                f"Today is {today.isoformat()} ({today:%A}). "
+                "Call get_shop_calendar and use an ISO date from it."
+            )
+        slots = self.bookings.availability(date, service)
         return {
             "date": date,
             "weekday": f"{day:%A}",
